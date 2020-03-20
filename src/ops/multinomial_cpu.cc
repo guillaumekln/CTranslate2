@@ -7,20 +7,47 @@ namespace ctranslate2 {
 
     template <typename In, typename Out>
     static void multinomial_kernel(const In* input,
-                                   dim_t batch_size,
-                                   dim_t class_size,
-                                   dim_t sample_size,
+                                   const dim_t batch_size,
+                                   const dim_t class_size,
+                                   const dim_t sample_size,
+                                   const bool replacement,
                                    Out* output) {
       auto& generator = get_random_generator();
+      auto* cum_dist = static_cast<In*>(primitives<>::alloc_data(class_size * sizeof (In)));
+      std::uniform_real_distribution<double> uniform;
 
       for (dim_t i = 0; i < batch_size; ++i) {
-        const In* input_data = input + i * class_size;
-        Out* output_data = output + i * sample_size;
+        const In* in = input + i * class_size;
 
-        std::discrete_distribution<Out> distribution(input_data, input_data + class_size);
-        for (dim_t j = 0; j < sample_size; ++j)
-          output_data[j] = distribution(generator);
+        // Compute the normalized cumulative distribution.
+        const In sum = *std::prev(std::partial_sum(in, in + class_size, cum_dist));
+        primitives<>::mul(In(1) / sum, cum_dist, class_size);
+
+        Out* out = output + i * sample_size;
+        for (dim_t j = 0; j < sample_size; ++j) {
+          // Draw an index such that cum_dist[index-1] < uniform_sample < cum_dist[index].
+          const double uniform_sample = uniform(generator);
+          const Out index = std::distance(
+            cum_dist,
+            std::lower_bound(cum_dist, cum_dist + class_size, static_cast<In>(uniform_sample)));
+
+          out[j] = index;
+
+          // Prevent index from being sampled again when sampling without replacement.
+          if (!replacement && j + 1 < sample_size) {
+            // Remove contribution of the selected index in the cumulative distribution.
+            const In mass = cum_dist[index] - (index > 0 ? cum_dist[index - 1] : 0);
+            primitives<>::sub(mass, cum_dist + index, class_size - index);
+
+            // Renormalize by the new sum.
+            const In new_sum = In(1) - mass;
+            primitives<>::mul(In(1) / new_sum, cum_dist, class_size);
+          }
+        }
+
       }
+
+      primitives<>::free_data(cum_dist);
     }
 
     template <Device D, typename T>
@@ -31,6 +58,7 @@ namespace ctranslate2 {
                          batch_size,
                          class_size,
                          _sample_size,
+                         _replacement,
                          output.data<int32_t>());
     }
 

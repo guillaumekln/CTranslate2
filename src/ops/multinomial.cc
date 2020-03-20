@@ -5,8 +5,9 @@
 namespace ctranslate2 {
   namespace ops {
 
-    Multinomial::Multinomial(dim_t sample_size)
-      : _sample_size(sample_size) {
+    Multinomial::Multinomial(const dim_t sample_size, const bool replacement)
+      : _sample_size(sample_size)
+      , _replacement(replacement) {
     }
 
     void Multinomial::operator()(const StorageView& input, StorageView& output) const {

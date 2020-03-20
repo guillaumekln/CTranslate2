@@ -574,12 +574,12 @@ TEST_P(OpDeviceTest, QuantizeINT8) {
   expect_storage_eq(qa, expected_qa);
 }
 
-TEST_P(OpDeviceTest, Multinomial) {
+TEST_P(OpDeviceTest, MultinomialWithReplacement) {
   Device device = GetParam();
   StorageView input({2, 4}, std::vector<float>{0, 0, 1, 0, 0, 0, 0, 1}, device);
   StorageView output(DataType::INT32, device);
   StorageView expected({2, 2}, std::vector<int32_t>{2, 2, 3, 3}, device);
-  ops::Multinomial(2)(input, output);
+  ops::Multinomial(2, /*replacement=*/true)(input, output);
   expect_storage_eq(output, expected);
 }
 
