@@ -103,7 +103,6 @@ namespace ctranslate2 {
       int _device;
       cudaStream_t _stream;
       cublasHandle_t _handle;
-      CachingAllocatorConfig _allocator_config;
       std::unique_ptr<cub::CachingDeviceAllocator> _allocator;
     };
 
