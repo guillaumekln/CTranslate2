@@ -22,3 +22,6 @@ th1.join()
 th2.join()
 end = time.time()
 print(end - start)
+
+del t1
+del t2
