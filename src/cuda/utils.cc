@@ -40,39 +40,15 @@ namespace ctranslate2 {
       }
     }
 
-    cudaStream_t get_cuda_stream() {
-      // Only use the default stream for now.
-      return static_cast<cudaStream_t>(0);
-    }
-
-    class CublasHandle {
-    public:
-      CublasHandle() {
-        CUDA_CHECK(cudaGetDevice(&_device));
-        CUBLAS_CHECK(cublasCreate(&_handle));
-        CUBLAS_CHECK(cublasSetStream(_handle, get_cuda_stream()));
-      }
-      ~CublasHandle() {
-        ScopedDeviceSetter scoped_device_setter(Device::CUDA, _device);
-        cublasDestroy(_handle);
-      }
-      cublasHandle_t get() const {
-        return _handle;
-      }
-    private:
-      int _device;
-      cublasHandle_t _handle;
+    // See https://nvlabs.github.io/cub/structcub_1_1_caching_device_allocator.html.
+    struct CachingAllocatorConfig {
+      unsigned int bin_growth = 4;
+      unsigned int min_bin = 3;
+      unsigned int max_bin = 12;
+      size_t max_cached_bytes = 200 * (1 << 20);  // 200MB
     };
 
-    // We create one cuBLAS/cuDNN handle per host thread. The handle is destroyed
-    // when the thread exits.
-
-    cublasHandle_t get_cublas_handle() {
-      static thread_local CublasHandle cublas_handle;
-      return cublas_handle.get();
-    }
-
-    CachingAllocatorConfig get_caching_allocator_config() {
+    static CachingAllocatorConfig get_caching_allocator_config() {
       CachingAllocatorConfig config;
       const char* config_env = std::getenv("CT2_CUDA_CACHING_ALLOCATOR_CONFIG");
       if (config_env) {
@@ -87,6 +63,67 @@ namespace ctranslate2 {
         config.max_cached_bytes = std::stoull(values[3]);
       }
       return config;
+    }
+
+    class CudaContext {
+    public:
+      CudaContext() {
+        CUDA_CHECK(cudaGetDevice(&_device));
+        CUDA_CHECK(cudaStreamCreateWithFlags(&_stream, cudaStreamNonBlocking));
+        CUBLAS_CHECK(cublasCreate(&_handle));
+        CUBLAS_CHECK(cublasSetStream(_handle, _stream));
+
+        const auto allocator_config = get_caching_allocator_config();
+        _allocator.reset(new cub::CachingDeviceAllocator(allocator_config.bin_growth,
+                                                         allocator_config.min_bin,
+                                                         allocator_config.max_bin,
+                                                         allocator_config.max_cached_bytes));
+      }
+
+      ~CudaContext() {
+        ScopedDeviceSetter scoped_device_setter(Device::CUDA, _device);
+        _allocator.reset();
+        cublasDestroy(_handle);
+        cudaStreamDestroy(_stream);
+      }
+
+      cublasHandle_t get_cublas_handle() const {
+        return _handle;
+      }
+
+      cudaStream_t get_stream() const {
+        return _stream;
+      }
+
+      cub::CachingDeviceAllocator& get_allocator() {
+        return *_allocator;
+      }
+
+    private:
+      int _device;
+      cudaStream_t _stream;
+      cublasHandle_t _handle;
+      CachingAllocatorConfig _allocator_config;
+      std::unique_ptr<cub::CachingDeviceAllocator> _allocator;
+    };
+
+    static CudaContext& get_context() {
+      // We create a separate CUDA context for each host thread. The context is destroyed
+      // when the thread exits.
+      static thread_local CudaContext context;
+      return context;
+    }
+
+    cudaStream_t get_cuda_stream() {
+      return get_context().get_stream();
+    }
+
+    cublasHandle_t get_cublas_handle() {
+      return get_context().get_cublas_handle();
+    }
+
+    cub::CachingDeviceAllocator& get_allocator() {
+      return get_context().get_allocator();
     }
 
     int get_gpu_count() {

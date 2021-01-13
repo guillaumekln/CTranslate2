@@ -6,19 +6,11 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <thrust/iterator/discard_iterator.h>
-#include <cub/util_allocator.cuh>
 
 #include "cuda/helpers.h"
 #include "type_dispatch.h"
 
 namespace ctranslate2 {
-
-  static const cuda::CachingAllocatorConfig allocator_config = cuda::get_caching_allocator_config();
-  static cub::CachingDeviceAllocator allocator(
-    allocator_config.bin_growth,
-    allocator_config.min_bin,
-    allocator_config.max_bin,
-    allocator_config.max_cached_bytes);
 
   template<>
   void primitives<Device::CUDA>::set_device(int index) {
@@ -35,20 +27,20 @@ namespace ctranslate2 {
   template<>
   void* primitives<Device::CUDA>::alloc_data(dim_t size, int device_index) {
     if (device_index < 0)
-      device_index = cub::CachingDeviceAllocator::INVALID_DEVICE_ORDINAL;
+      device_index = get_device();
     void* data = nullptr;
-    CUDA_CHECK(allocator.DeviceAllocate(device_index, &data, size, cuda::get_cuda_stream()));
+    CUDA_CHECK(cuda::get_allocator().DeviceAllocate(device_index, &data, size, cuda::get_cuda_stream()));
     return data;
   }
 
   template<>
   void primitives<Device::CUDA>::free_data(void* data, int device_index) {
-    CUDA_CHECK(allocator.DeviceFree(device_index, data));
+    CUDA_CHECK(cuda::get_allocator().DeviceFree(device_index, data));
   }
 
   template<>
   void primitives<Device::CUDA>::clear_cache() {
-    CUDA_CHECK(allocator.FreeAllCached());
+    CUDA_CHECK(cuda::get_allocator().FreeAllCached());
   }
 
   template<>
