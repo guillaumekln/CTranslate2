@@ -2,8 +2,10 @@ import ctranslate2
 import time
 import threading
 
-t1 = ctranslate2.Translator("ende_transformer", device="cuda", device_index=0)
-t2 = ctranslate2.Translator("ende_transformer", device="cuda", device_index=1)
+print("Create t1")
+t1 = ctranslate2.Translator("/data/ende_transformer", device="cuda", device_index=0)
+print("Create t2")
+t2 = ctranslate2.Translator("/data/ende_transformer", device="cuda", device_index=1)
 
 print("Sequential")
 start = time.time()

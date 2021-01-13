@@ -69,9 +69,9 @@ namespace ctranslate2 {
     public:
       CudaContext() {
         CUDA_CHECK(cudaGetDevice(&_device));
-        CUDA_CHECK(cudaStreamCreateWithFlags(&_stream, cudaStreamNonBlocking));
+        //CUDA_CHECK(cudaStreamCreateWithFlags(&_stream, cudaStreamNonBlocking));
         CUBLAS_CHECK(cublasCreate(&_handle));
-        CUBLAS_CHECK(cublasSetStream(_handle, _stream));
+        //CUBLAS_CHECK(cublasSetStream(_handle, _stream));
 
         const auto allocator_config = get_caching_allocator_config();
         _allocator.reset(new cub::CachingDeviceAllocator(allocator_config.bin_growth,
@@ -84,7 +84,7 @@ namespace ctranslate2 {
         ScopedDeviceSetter scoped_device_setter(Device::CUDA, _device);
         _allocator.reset();
         cublasDestroy(_handle);
-        cudaStreamDestroy(_stream);
+        //cudaStreamDestroy(_stream);
       }
 
       cublasHandle_t get_cublas_handle() const {
@@ -92,7 +92,8 @@ namespace ctranslate2 {
       }
 
       cudaStream_t get_stream() const {
-        return _stream;
+        return 0;
+        //return _stream;
       }
 
       cub::CachingDeviceAllocator& get_allocator() {
@@ -101,7 +102,7 @@ namespace ctranslate2 {
 
     private:
       int _device;
-      cudaStream_t _stream;
+      //cudaStream_t _stream;
       cublasHandle_t _handle;
       std::unique_ptr<cub::CachingDeviceAllocator> _allocator;
     };
