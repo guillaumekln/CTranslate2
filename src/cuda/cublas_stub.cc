@@ -5,7 +5,12 @@
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
-#define CUBLAS_SONAME "libcublas.so." STR(CUBLAS_VER_MAJOR)
+
+#if CUDA_VERSION == 10000
+#  define CUBLAS_SONAME "libcublas.so.10.0"
+#else
+#  define CUBLAS_SONAME "libcublas.so." STR(CUBLAS_VER_MAJOR)
+#endif
 
 namespace ctranslate2 {
 
